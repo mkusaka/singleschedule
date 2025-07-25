@@ -79,4 +79,3 @@ impl Storage {
         Ok(home.join(".singleschedule").join("events.json"))
     }
 }
-

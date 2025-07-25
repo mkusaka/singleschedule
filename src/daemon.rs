@@ -145,4 +145,3 @@ fn is_process_running(pid: u32) -> bool {
     // Signal 0 is used to check if process exists without sending actual signal
     signal::kill(Pid::from_raw(pid as i32), None).is_ok()
 }
-

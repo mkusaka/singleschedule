@@ -115,4 +115,3 @@ async fn test_invalid_cron_handling() {
     let result = scheduler.load_events().await;
     assert!(result.is_ok()); // Should not fail, just log error
 }
-

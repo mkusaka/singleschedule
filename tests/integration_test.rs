@@ -120,4 +120,3 @@ fn test_cli_binary() {
     assert!(stdout.contains("remove"));
     assert!(stdout.contains("list"));
 }
-

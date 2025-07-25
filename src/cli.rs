@@ -136,4 +136,3 @@ pub async fn handle_list() -> Result<()> {
 
     Ok(())
 }
-
