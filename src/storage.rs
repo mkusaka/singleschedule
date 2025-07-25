@@ -1,8 +1,6 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-#[cfg(test)]
-use std::env;
 use std::path::PathBuf;
 use tokio::fs;
 
