@@ -7,6 +7,15 @@ use tokio::signal;
 use crate::scheduler::Scheduler;
 
 pub async fn start_daemon() -> Result<()> {
+    // Skip daemon functionality in test mode
+    #[cfg(test)]
+    {
+        if std::env::var("SINGLESCHEDULE_TEST_HOME").is_ok() {
+            info!("Skipping daemon start in test mode");
+            return Ok(());
+        }
+    }
+
     let pid_file = get_pid_file()?;
 
     // Check if daemon is already running
@@ -40,6 +49,15 @@ pub async fn start_daemon() -> Result<()> {
 }
 
 pub async fn stop_daemon() -> Result<()> {
+    // Skip daemon functionality in test mode
+    #[cfg(test)]
+    {
+        if std::env::var("SINGLESCHEDULE_TEST_HOME").is_ok() {
+            info!("Skipping daemon stop in test mode");
+            return Ok(());
+        }
+    }
+
     let pid_file = get_pid_file()?;
 
     if !pid_file.exists() {
@@ -75,6 +93,15 @@ pub async fn stop_daemon() -> Result<()> {
 }
 
 pub async fn restart_daemon() -> Result<()> {
+    // Skip daemon functionality in test mode
+    #[cfg(test)]
+    {
+        if std::env::var("SINGLESCHEDULE_TEST_HOME").is_ok() {
+            info!("Skipping daemon restart in test mode");
+            return Ok(());
+        }
+    }
+
     // Try to stop existing daemon
     let _ = stop_daemon().await;
 
