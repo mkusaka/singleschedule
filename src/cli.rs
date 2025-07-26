@@ -59,6 +59,9 @@ pub enum Commands {
         #[arg(short, long, conflicts_with = "slugs")]
         all: bool,
     },
+
+    /// Launch the interactive TUI
+    Tui,
 }
 
 pub async fn handle_add(slug: String, cron_expr: String, command: Vec<String>) -> Result<()> {
@@ -167,7 +170,7 @@ pub async fn handle_start(slugs: Vec<String>, all: bool) -> Result<()> {
                 event.active = true;
                 found_count += 1;
             } else {
-                eprintln!("Warning: Task with slug '{}' not found", slug);
+                eprintln!("Warning: Task with slug '{slug}' not found");
             }
         }
 
@@ -176,7 +179,7 @@ pub async fn handle_start(slugs: Vec<String>, all: bool) -> Result<()> {
         }
 
         storage.save().await?;
-        println!("Started {} task(s)", found_count);
+        println!("Started {found_count} task(s)");
     } else if all || slugs.is_empty() {
         // Start all tasks (explicit --all or no arguments)
         let inactive_count = storage.events.iter_mut().filter(|e| !e.active).count();
@@ -186,7 +189,7 @@ pub async fn handle_start(slugs: Vec<String>, all: bool) -> Result<()> {
 
         if inactive_count > 0 {
             storage.save().await?;
-            println!("Started all {} inactive task(s)", inactive_count);
+            println!("Started all {inactive_count} inactive task(s)");
         } else {
             println!("All tasks are already active");
         }
@@ -209,7 +212,7 @@ pub async fn handle_stop(slugs: Vec<String>, all: bool) -> Result<()> {
                 event.active = false;
                 found_count += 1;
             } else {
-                eprintln!("Warning: Task with slug '{}' not found", slug);
+                eprintln!("Warning: Task with slug '{slug}' not found");
             }
         }
 
@@ -218,7 +221,7 @@ pub async fn handle_stop(slugs: Vec<String>, all: bool) -> Result<()> {
         }
 
         storage.save().await?;
-        println!("Stopped {} task(s)", found_count);
+        println!("Stopped {found_count} task(s)");
 
         // Check if any tasks are still active
         if storage.events.iter().any(|e| e.active) {
@@ -236,4 +239,8 @@ pub async fn handle_stop(slugs: Vec<String>, all: bool) -> Result<()> {
     }
 
     Ok(())
+}
+
+pub async fn handle_tui() -> Result<()> {
+    crate::tui::run_tui().await
 }
