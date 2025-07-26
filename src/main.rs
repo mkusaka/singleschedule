@@ -5,6 +5,7 @@ mod cli;
 mod daemon;
 mod scheduler;
 mod storage;
+mod tui;
 
 use cli::Cli;
 
@@ -33,6 +34,9 @@ async fn main() -> Result<()> {
         }
         cli::Commands::Stop { slugs, all } => {
             cli::handle_stop(slugs, all).await?;
+        }
+        cli::Commands::Tui => {
+            cli::handle_tui().await?;
         }
     }
 
