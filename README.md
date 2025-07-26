@@ -11,6 +11,7 @@ A simple cron-based task scheduler daemon for running commands at specified inte
 - Each task has a unique slug identifier
 - Selective task control - start/stop individual tasks without affecting others
 - Task status tracking (active/inactive)
+- **Interactive TUI (Terminal User Interface) for easy task management**
 
 ## Installation
 
@@ -77,6 +78,43 @@ singleschedule stop task1 task2
 
 # Explicitly stop all tasks and daemon
 singleschedule stop --all
+```
+
+### Interactive TUI Mode
+
+Launch the interactive Terminal User Interface for easy task management:
+
+```bash
+singleschedule tui
+```
+
+#### TUI Features
+
+- **Visual task list**: See all tasks with their status, cron expression, and last run time
+- **Keyboard navigation**: Use arrow keys to navigate through tasks
+- **Real-time status updates**: Changes are immediately saved and reflected
+
+#### TUI Keyboard Shortcuts
+
+- **↑/↓**: Navigate through tasks
+- **Space**: Toggle task active/inactive status
+- **a**: Add a new task (opens a modal dialog)
+- **d**: Delete selected task (with confirmation dialog)
+- **r**: Refresh task list from storage
+- **Enter**: Toggle daemon for selected task
+- **ESC**: Exit TUI
+- **Ctrl+Q**: Exit TUI (alternative)
+
+#### TUI Screenshots
+
+```
+SingleSchedule TUI | Press ESC to quit | a to add | d to delete | Space to toggle
+
+Status   Slug                 Cron                 Command                        Last Run       
+-------------------------------------------------------------------------------------------------
+●        backup               0 0 * * * *          backup.sh                      2025-07-26 12:00
+○        cleanup              0 0 0 * * *          cleanup.sh                     Never
+●        webhook              0 */30 * * * *       curl -X POST https://...       2025-07-26 11:30
 ```
 
 ## Selective Task Control

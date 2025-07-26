@@ -37,6 +37,9 @@ enum InputResult {
 async fn handle_input(state: &mut AppState, key: KeyEvent) -> Result<InputResult> {
     match state.mode {
         AppMode::Normal => match key.code {
+            KeyCode::Esc => {
+                return Ok(InputResult::Exit);
+            }
             KeyCode::Char('q') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 return Ok(InputResult::Exit);
             }
@@ -142,7 +145,7 @@ fn draw_ui(stdout: &mut Stdout, state: &AppState) -> Result<()> {
         ResetColor,
         Print(" | Press "),
         SetForegroundColor(Color::Yellow),
-        Print("Ctrl+Q"),
+        Print("ESC"),
         ResetColor,
         Print(" to quit | "),
         SetForegroundColor(Color::Yellow),
