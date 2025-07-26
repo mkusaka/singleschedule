@@ -32,6 +32,7 @@ mod tests {
             pid: None,
             created_at: chrono::Utc::now(),
             last_run: None,
+            active: true,
         };
 
         storage.events.push(event.clone());
@@ -59,6 +60,7 @@ mod tests {
             pid: None,
             created_at: chrono::Utc::now(),
             last_run: None,
+            active: true,
         };
 
         storage.events.push(event);

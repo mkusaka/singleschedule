@@ -120,3 +120,142 @@ fn test_cli_binary() {
     assert!(stdout.contains("remove"));
     assert!(stdout.contains("list"));
 }
+
+#[tokio::test]
+async fn test_selective_start_stop() {
+    let temp_dir = TempDir::new().unwrap();
+    unsafe {
+        env::set_var("SINGLESCHEDULE_TEST_HOME", temp_dir.path());
+    }
+
+    // Add multiple tasks
+    for i in 1..=3 {
+        cli::handle_add(
+            format!("task-{}", i),
+            "0 * * * * *".to_string(),
+            vec!["echo".to_string(), format!("task {}", i)],
+        )
+        .await
+        .unwrap();
+    }
+
+    // All tasks should be active initially
+    let storage = Storage::load().await.unwrap();
+    assert_eq!(storage.events.len(), 3);
+    assert!(storage.events.iter().all(|e| e.active));
+
+    // Stop specific tasks
+    cli::handle_stop(vec!["task-1".to_string(), "task-3".to_string()], false)
+        .await
+        .unwrap();
+
+    // Check that only task-2 is active
+    let storage = Storage::load().await.unwrap();
+    assert!(
+        !storage
+            .events
+            .iter()
+            .find(|e| e.slug == "task-1")
+            .unwrap()
+            .active
+    );
+    assert!(
+        storage
+            .events
+            .iter()
+            .find(|e| e.slug == "task-2")
+            .unwrap()
+            .active
+    );
+    assert!(
+        !storage
+            .events
+            .iter()
+            .find(|e| e.slug == "task-3")
+            .unwrap()
+            .active
+    );
+
+    // Start task-1 only
+    cli::handle_start(vec!["task-1".to_string()], false)
+        .await
+        .unwrap();
+
+    // Check that task-1 and task-2 are active
+    let storage = Storage::load().await.unwrap();
+    assert!(
+        storage
+            .events
+            .iter()
+            .find(|e| e.slug == "task-1")
+            .unwrap()
+            .active
+    );
+    assert!(
+        storage
+            .events
+            .iter()
+            .find(|e| e.slug == "task-2")
+            .unwrap()
+            .active
+    );
+    assert!(
+        !storage
+            .events
+            .iter()
+            .find(|e| e.slug == "task-3")
+            .unwrap()
+            .active
+    );
+
+    // Start all tasks using --all flag
+    cli::handle_start(vec![], true).await.unwrap();
+
+    // Check that all tasks are active
+    let storage = Storage::load().await.unwrap();
+    assert!(storage.events.iter().all(|e| e.active));
+}
+
+#[tokio::test]
+async fn test_start_stop_nonexistent_task() {
+    let temp_dir = TempDir::new().unwrap();
+    unsafe {
+        env::set_var("SINGLESCHEDULE_TEST_HOME", temp_dir.path());
+    }
+
+    // Add a task
+    cli::handle_add(
+        "existing-task".to_string(),
+        "0 * * * * *".to_string(),
+        vec!["echo".to_string(), "hello".to_string()],
+    )
+    .await
+    .unwrap();
+
+    // Try to stop a non-existent task along with existing one
+    cli::handle_stop(
+        vec!["existing-task".to_string(), "nonexistent".to_string()],
+        false,
+    )
+    .await
+    .unwrap();
+
+    // The existing task should be stopped
+    let storage = Storage::load().await.unwrap();
+    assert!(
+        !storage
+            .events
+            .iter()
+            .find(|e| e.slug == "existing-task")
+            .unwrap()
+            .active
+    );
+
+    // Try to start only non-existent tasks - should fail
+    let result = cli::handle_start(
+        vec!["nonexistent1".to_string(), "nonexistent2".to_string()],
+        false,
+    )
+    .await;
+    assert!(result.is_err());
+}

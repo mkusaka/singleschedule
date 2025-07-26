@@ -34,19 +34,23 @@ impl Scheduler {
     pub async fn load_events(&mut self) -> Result<()> {
         let storage = Storage::load().await?;
 
-        // Parse cron expressions
+        // Parse cron expressions for active tasks only
         for event in &storage.events {
-            match Schedule::from_str(&event.cron) {
-                Ok(schedule) => {
-                    self.schedules.insert(event.slug.clone(), schedule);
-                    info!("Loaded schedule for task '{}'", event.slug);
+            if event.active {
+                match Schedule::from_str(&event.cron) {
+                    Ok(schedule) => {
+                        self.schedules.insert(event.slug.clone(), schedule);
+                        info!("Loaded schedule for active task '{}'", event.slug);
+                    }
+                    Err(e) => {
+                        error!(
+                            "Failed to parse cron expression for task '{}': {}",
+                            event.slug, e
+                        );
+                    }
                 }
-                Err(e) => {
-                    error!(
-                        "Failed to parse cron expression for task '{}': {}",
-                        event.slug, e
-                    );
-                }
+            } else {
+                debug!("Skipping inactive task '{}'", event.slug);
             }
         }
 
@@ -78,15 +82,17 @@ impl Scheduler {
         let mut schedules = HashMap::new();
 
         for event in &storage.events {
-            match Schedule::from_str(&event.cron) {
-                Ok(schedule) => {
-                    schedules.insert(event.slug.clone(), schedule);
-                }
-                Err(e) => {
-                    error!(
-                        "Failed to parse cron expression for task '{}': {}",
-                        event.slug, e
-                    );
+            if event.active {
+                match Schedule::from_str(&event.cron) {
+                    Ok(schedule) => {
+                        schedules.insert(event.slug.clone(), schedule);
+                    }
+                    Err(e) => {
+                        error!(
+                            "Failed to parse cron expression for task '{}': {}",
+                            event.slug, e
+                        );
+                    }
                 }
             }
         }
@@ -101,6 +107,10 @@ impl Scheduler {
         let mut tasks_to_update = Vec::new();
 
         for (idx, event) in storage.events.iter().enumerate() {
+            if !event.active {
+                continue;
+            }
+
             if let Some(schedule) = self.schedules.get(&event.slug) {
                 if self.should_run(schedule, &event.last_run, now) {
                     info!("Running task '{}'", event.slug);

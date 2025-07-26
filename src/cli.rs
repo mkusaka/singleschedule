@@ -39,10 +39,26 @@ pub enum Commands {
     List,
 
     /// Start the scheduler daemon
-    Start,
+    Start {
+        /// Slugs of tasks to start (if not specified, starts daemon for all tasks)
+        #[arg(value_name = "SLUG")]
+        slugs: Vec<String>,
+
+        /// Start all tasks explicitly
+        #[arg(short, long, conflicts_with = "slugs")]
+        all: bool,
+    },
 
     /// Stop the scheduler daemon
-    Stop,
+    Stop {
+        /// Slugs of tasks to stop (if not specified, stops entire daemon)
+        #[arg(value_name = "SLUG")]
+        slugs: Vec<String>,
+
+        /// Stop all tasks explicitly
+        #[arg(short, long, conflicts_with = "slugs")]
+        all: bool,
+    },
 }
 
 pub async fn handle_add(slug: String, cron_expr: String, command: Vec<String>) -> Result<()> {
@@ -64,6 +80,7 @@ pub async fn handle_add(slug: String, cron_expr: String, command: Vec<String>) -
         pid: None,
         created_at: chrono::Utc::now(),
         last_run: None,
+        active: true,
     };
 
     storage.events.push(event);
@@ -111,10 +128,10 @@ pub async fn handle_list() -> Result<()> {
     }
 
     println!(
-        "{:<20} {:<20} {:<40} {:<15}",
-        "SLUG", "CRON", "COMMAND", "LAST RUN"
+        "{:<20} {:<20} {:<40} {:<10} {:<15}",
+        "SLUG", "CRON", "COMMAND", "STATUS", "LAST RUN"
     );
-    println!("{}", "-".repeat(95));
+    println!("{}", "-".repeat(105));
 
     for event in &storage.events {
         let last_run = event
@@ -128,10 +145,94 @@ pub async fn handle_list() -> Result<()> {
             event.command.clone()
         };
 
+        let status = if event.active { "Active" } else { "Inactive" };
+
         println!(
-            "{:<20} {:<20} {:<40} {:<15}",
-            event.slug, event.cron, command, last_run
+            "{:<20} {:<20} {:<40} {:<10} {:<15}",
+            event.slug, event.cron, command, status, last_run
         );
+    }
+
+    Ok(())
+}
+
+pub async fn handle_start(slugs: Vec<String>, all: bool) -> Result<()> {
+    let mut storage = Storage::load().await?;
+
+    if !slugs.is_empty() {
+        // Start specific tasks
+        let mut found_count = 0;
+        for slug in &slugs {
+            if let Some(event) = storage.events.iter_mut().find(|e| &e.slug == slug) {
+                event.active = true;
+                found_count += 1;
+            } else {
+                eprintln!("Warning: Task with slug '{}' not found", slug);
+            }
+        }
+
+        if found_count == 0 {
+            return Err(anyhow::anyhow!("No valid tasks found to start"));
+        }
+
+        storage.save().await?;
+        println!("Started {} task(s)", found_count);
+    } else if all || slugs.is_empty() {
+        // Start all tasks (explicit --all or no arguments)
+        let inactive_count = storage.events.iter_mut().filter(|e| !e.active).count();
+        for event in &mut storage.events {
+            event.active = true;
+        }
+
+        if inactive_count > 0 {
+            storage.save().await?;
+            println!("Started all {} inactive task(s)", inactive_count);
+        } else {
+            println!("All tasks are already active");
+        }
+    }
+
+    // Start or restart the daemon
+    crate::daemon::start_daemon().await?;
+
+    Ok(())
+}
+
+pub async fn handle_stop(slugs: Vec<String>, all: bool) -> Result<()> {
+    let mut storage = Storage::load().await?;
+
+    if !slugs.is_empty() {
+        // Stop specific tasks
+        let mut found_count = 0;
+        for slug in &slugs {
+            if let Some(event) = storage.events.iter_mut().find(|e| &e.slug == slug) {
+                event.active = false;
+                found_count += 1;
+            } else {
+                eprintln!("Warning: Task with slug '{}' not found", slug);
+            }
+        }
+
+        if found_count == 0 {
+            return Err(anyhow::anyhow!("No valid tasks found to stop"));
+        }
+
+        storage.save().await?;
+        println!("Stopped {} task(s)", found_count);
+
+        // Check if any tasks are still active
+        if storage.events.iter().any(|e| e.active) {
+            // Some tasks still active, restart daemon
+            if let Err(e) = crate::daemon::restart_daemon().await {
+                eprintln!("Warning: Failed to restart daemon: {e}");
+            }
+        } else {
+            // No active tasks, stop daemon
+            crate::daemon::stop_daemon().await?;
+        }
+    } else if all || slugs.is_empty() {
+        // Stop all tasks (explicit --all or no arguments means stop daemon entirely)
+        crate::daemon::stop_daemon().await?;
     }
 
     Ok(())

@@ -29,6 +29,7 @@ async fn test_scheduler_load_events() {
         pid: None,
         created_at: Utc::now(),
         last_run: None,
+        active: true,
     });
 
     storage.events.push(Event {
@@ -38,6 +39,7 @@ async fn test_scheduler_load_events() {
         pid: None,
         created_at: Utc::now(),
         last_run: None,
+        active: true,
     });
 
     storage.save().await.unwrap();
@@ -68,6 +70,7 @@ async fn test_should_run_logic() {
         pid: None,
         created_at: now - Duration::hours(1),
         last_run: None,
+        active: true,
     };
 
     // Task that ran 2 minutes ago should run again
@@ -78,6 +81,7 @@ async fn test_should_run_logic() {
         pid: None,
         created_at: now - Duration::hours(1),
         last_run: Some(now - Duration::minutes(2)),
+        active: true,
     };
 
     // Task that just ran should not run again
@@ -88,6 +92,7 @@ async fn test_should_run_logic() {
         pid: None,
         created_at: now - Duration::hours(1),
         last_run: Some(now - Duration::seconds(30)),
+        active: true,
     };
 }
 
@@ -106,6 +111,7 @@ async fn test_invalid_cron_handling() {
         pid: None,
         created_at: Utc::now(),
         last_run: None,
+        active: true,
     });
 
     storage.save().await.unwrap();

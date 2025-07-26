@@ -12,6 +12,12 @@ pub struct Event {
     pub pid: Option<u32>,
     pub created_at: DateTime<Utc>,
     pub last_run: Option<DateTime<Utc>>,
+    #[serde(default = "default_active")]
+    pub active: bool,
+}
+
+fn default_active() -> bool {
+    true
 }
 
 #[derive(Debug, Serialize, Deserialize)]
