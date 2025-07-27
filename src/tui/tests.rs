@@ -6,9 +6,9 @@
 // - state management (AppState, AppMode, NewTaskInput)
 // - TUI components (TaskListComponent, AddTaskDialog, DeleteConfirmDialog)
 // - keyboard navigation and event handling
-// 
+//
 // These are no longer relevant with the simple interface.
-// 
+//
 // TODO: Write new tests for the simple_interface module that test:
 // - Command parsing
 // - Task selection with choose()

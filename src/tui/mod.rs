@@ -18,4 +18,3 @@ mod tests;
 pub async fn run_tui() -> anyhow::Result<()> {
     simple_interface::run_simple_tui().await
 }
-

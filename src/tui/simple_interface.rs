@@ -1,22 +1,21 @@
-use anyhow::Result;
-use r3bl_tui::{
-    choose, HowToChoose, height, StyleSheet,
-    ast, ast_lines, new_style, tui_color,
-    inline_vec, InlineVec, AnsiStyledText,
-    DefaultIoDevices,
-    readline_async::{ReadlineAsyncContext, Header},
-    InputDevice, OutputDevice,
-};
-use crossterm::terminal::{enable_raw_mode, disable_raw_mode};
 use crate::storage::{Event, Storage};
+use anyhow::Result;
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+use r3bl_tui::{
+    ast, ast_lines, choose, height, inline_vec, new_style,
+    readline_async::{Header, ReadlineAsyncContext},
+    tui_color, AnsiStyledText, DefaultIoDevices, HowToChoose, InlineVec, InputDevice, OutputDevice,
+    StyleSheet,
+};
 
 pub async fn run_simple_tui() -> Result<()> {
     let mut storage = Storage::load().await?;
-    
+
     // Try to create readline context for better copy/paste support
-    let readline_context = ReadlineAsyncContext::try_new(None::<String>).await
+    let readline_context = ReadlineAsyncContext::try_new(None::<String>)
+        .await
         .map_err(|e| anyhow::anyhow!("Failed to create readline context: {e}"))?;
-    
+
     match readline_context {
         Some(rl_ctx) => {
             // Use readline-aware version with copy/paste support
@@ -33,28 +32,28 @@ async fn run_with_readline(storage: &mut Storage, mut rl_ctx: ReadlineAsyncConte
     loop {
         // Create menu header with styling
         let header = create_main_menu_header();
-        
+
         // Show task list as part of the header
         let task_list = create_task_list_display(storage);
         let mut full_header = header;
         full_header.extend(task_list);
-        
+
         // Menu options
         let menu_options = [
             "📋 List tasks",
-            "➕ Add new task", 
+            "➕ Add new task",
             "🗑️  Delete task",
             "🔄 Toggle task active/inactive",
             "🔄 Refresh task list",
             "❓ Help",
             "👋 Exit",
         ];
-        
+
         // Use readline-aware devices for better copy/paste support
         let sw = rl_ctx.clone_shared_writer();
         let mut output_device = rl_ctx.clone_output_device();
         let input_device = rl_ctx.mut_input_device();
-        
+
         let selected = choose(
             full_header,
             &menu_options,
@@ -63,13 +62,15 @@ async fn run_with_readline(storage: &mut Storage, mut rl_ctx: ReadlineAsyncConte
             HowToChoose::Single,
             StyleSheet::default(),
             (&mut output_device, input_device, Some(sw.clone())),
-        ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
-        
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
+
         if selected.is_empty() {
             // User pressed ESC or Ctrl+C
             break;
         }
-        
+
         // Process selection
         match selected[0].as_ref() {
             "📋 List tasks" => {
@@ -98,19 +99,21 @@ async fn run_with_readline(storage: &mut Storage, mut rl_ctx: ReadlineAsyncConte
             _ => {}
         }
     }
-    
+
     // Shutdown readline context properly
-    rl_ctx.request_shutdown(Some("Goodbye! 👋")).await
+    rl_ctx
+        .request_shutdown(Some("Goodbye! 👋"))
+        .await
         .map_err(|e| anyhow::anyhow!("Failed to shutdown readline: {e}"))?;
     rl_ctx.await_shutdown().await;
-    
+
     Ok(())
 }
 
 async fn run_without_readline(storage: &mut Storage) -> Result<()> {
     // Note: Without readline context, we have limited terminal control
     // But we can still use choose() with proper setup
-    
+
     // Try to enable raw mode for terminal control
     // If this fails, it's likely because we're not in a proper terminal
     if let Err(e) = enable_raw_mode() {
@@ -118,12 +121,12 @@ async fn run_without_readline(storage: &mut Storage) -> Result<()> {
         eprintln!("Warning: Could not enable raw mode: {e}. Using simplified interface.");
         return run_simple_interface(storage).await;
     }
-    
+
     let result = run_tui_loop(storage).await;
-    
+
     // Always disable raw mode before returning
     let _ = disable_raw_mode(); // Ignore errors on cleanup
-    
+
     result
 }
 
@@ -131,11 +134,11 @@ async fn run_simple_interface(storage: &mut Storage) -> Result<()> {
     loop {
         // Clear screen
         print!("\x1B[2J\x1B[1;1H");
-        
+
         // Show header
         println!("🗓️  SingleSchedule - Task Management");
         println!("=====================================\n");
-        
+
         // Show task list
         if storage.events.is_empty() {
             println!("📭 No tasks found. Use 'Add new task' to create one.\n");
@@ -155,7 +158,7 @@ async fn run_simple_interface(storage: &mut Storage) -> Result<()> {
             }
             println!("{}\n", "-".repeat(60));
         }
-        
+
         // Show menu
         println!("Choose an option:");
         println!("1. 📋 List tasks");
@@ -165,15 +168,15 @@ async fn run_simple_interface(storage: &mut Storage) -> Result<()> {
         println!("5. 🔄 Refresh task list");
         println!("6. ❓ Help");
         println!("7. 👋 Exit");
-        
+
         // Get user choice
         print!("\nEnter your choice (1-7): ");
         std::io::Write::flush(&mut std::io::stdout())?;
-        
+
         let mut choice = String::new();
         std::io::stdin().read_line(&mut choice)?;
         let choice = choice.trim();
-        
+
         match choice {
             "1" => {
                 // Tasks are already shown
@@ -204,7 +207,7 @@ async fn run_simple_interface(storage: &mut Storage) -> Result<()> {
                 println!("• Tasks run automatically in the background via daemon");
                 println!("• Use cron expressions like '0 * * * *' for hourly tasks");
                 println!("\nPress Enter to continue...");
-                
+
                 let mut input = String::new();
                 std::io::stdin().read_line(&mut input)?;
             }
@@ -218,7 +221,7 @@ async fn run_simple_interface(storage: &mut Storage) -> Result<()> {
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -226,27 +229,27 @@ async fn run_tui_loop(storage: &mut Storage) -> Result<()> {
     loop {
         // Create menu header with styling
         let header = create_main_menu_header();
-        
+
         // Show task list as part of the header
         let task_list = create_task_list_display(storage);
         let mut full_header = header;
         full_header.extend(task_list);
-        
+
         // Menu options
         let menu_options = [
             "📋 List tasks",
-            "➕ Add new task", 
+            "➕ Add new task",
             "🗑️  Delete task",
             "🔄 Toggle task active/inactive",
             "🔄 Refresh task list",
             "❓ Help",
             "👋 Exit",
         ];
-        
+
         // Create IO devices for standalone usage
         let mut output_device = OutputDevice::new_stdout();
         let mut input_device = InputDevice::new_event_stream();
-        
+
         let selected = choose(
             Header::MultiLine(full_header),
             &menu_options,
@@ -255,13 +258,15 @@ async fn run_tui_loop(storage: &mut Storage) -> Result<()> {
             HowToChoose::Single,
             StyleSheet::default(),
             (&mut output_device, &mut input_device, None),
-        ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
-        
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
+
         if selected.is_empty() {
             // User pressed ESC or Ctrl+C
             break;
         }
-        
+
         // Process selection
         match selected[0].as_ref() {
             "📋 List tasks" => {
@@ -293,7 +298,7 @@ async fn run_tui_loop(storage: &mut Storage) -> Result<()> {
             _ => {}
         }
     }
-    
+
     Ok(())
 }
 
@@ -306,14 +311,14 @@ fn create_main_menu_header() -> InlineVec<InlineVec<AnsiStyledText>> {
             bold
         ),
     );
-    
+
     let subtitle = ast(
         "Use ↑/↓ to navigate, Enter to select, ESC to go back",
         new_style!(
             color_fg: {tui_color!(94, 103, 111)}
         ),
     );
-    
+
     ast_lines![
         inline_vec![title],
         inline_vec![subtitle],
@@ -323,7 +328,7 @@ fn create_main_menu_header() -> InlineVec<InlineVec<AnsiStyledText>> {
 
 fn create_task_list_display(storage: &Storage) -> InlineVec<InlineVec<AnsiStyledText>> {
     let mut lines = InlineVec::new();
-    
+
     if storage.events.is_empty() {
         let empty_msg = ast(
             "📭 No tasks found. Use 'Add new task' to create one.",
@@ -342,7 +347,7 @@ fn create_task_list_display(storage: &Storage) -> InlineVec<InlineVec<AnsiStyled
             ),
         );
         lines.push(inline_vec![header]);
-        
+
         // Task list separator
         let separator = ast(
             "─".repeat(60),
@@ -351,7 +356,7 @@ fn create_task_list_display(storage: &Storage) -> InlineVec<InlineVec<AnsiStyled
             ),
         );
         lines.push(inline_vec![separator.clone()]);
-        
+
         // Tasks
         for (index, event) in storage.events.iter().enumerate() {
             let status = if event.active { "✅" } else { "⏸️" };
@@ -363,7 +368,7 @@ fn create_task_list_display(storage: &Storage) -> InlineVec<InlineVec<AnsiStyled
                 truncate(&event.cron, 15),
                 truncate(&event.command, 25)
             );
-            
+
             let task_ast = ast(
                 &task_line,
                 new_style!(
@@ -372,10 +377,10 @@ fn create_task_list_display(storage: &Storage) -> InlineVec<InlineVec<AnsiStyled
             );
             lines.push(inline_vec![task_ast]);
         }
-        
+
         lines.push(inline_vec![separator]);
     }
-    
+
     lines.push(inline_vec![]); // Empty line
     lines
 }
@@ -422,11 +427,11 @@ async fn show_help_with_readline(rl_ctx: &mut ReadlineAsyncContext) -> Result<()
             ),
         )]
     ];
-    
+
     let sw = rl_ctx.clone_shared_writer();
     let mut output_device = rl_ctx.clone_output_device();
     let input_device = rl_ctx.mut_input_device();
-    
+
     let _ = choose(
         help_header,
         &["Continue"],
@@ -435,8 +440,10 @@ async fn show_help_with_readline(rl_ctx: &mut ReadlineAsyncContext) -> Result<()
         HowToChoose::Single,
         StyleSheet::default(),
         (&mut output_device, input_device, Some(sw.clone())),
-    ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
-    
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+
     Ok(())
 }
 
@@ -482,10 +489,10 @@ async fn show_help_with_choose() -> Result<()> {
             ),
         )]
     ];
-    
+
     let mut output_device = OutputDevice::new_stdout();
     let mut input_device = InputDevice::new_event_stream();
-    
+
     let _ = choose(
         Header::MultiLine(help_header),
         &["Continue"],
@@ -494,13 +501,17 @@ async fn show_help_with_choose() -> Result<()> {
         HowToChoose::Single,
         StyleSheet::default(),
         (&mut output_device, &mut input_device, None),
-    ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
-    
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+
     Ok(())
 }
 
-
-async fn add_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineAsyncContext) -> Result<()> {
+async fn add_task_with_readline(
+    storage: &mut Storage,
+    rl_ctx: &mut ReadlineAsyncContext,
+) -> Result<()> {
     // Show add task instructions
     let header = ast_lines![
         inline_vec![ast(
@@ -538,11 +549,11 @@ async fn add_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineAsyn
         )],
         inline_vec![]
     ];
-    
+
     let sw = rl_ctx.clone_shared_writer();
     let mut output_device = rl_ctx.clone_output_device();
     let input_device = rl_ctx.mut_input_device();
-    
+
     let selected = choose(
         header,
         &["Continue to add task", "Cancel"],
@@ -551,62 +562,64 @@ async fn add_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineAsyn
         HowToChoose::Single,
         StyleSheet::default(),
         (&mut output_device, input_device, Some(sw.clone())),
-    ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
-    
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+
     if selected.is_empty() || selected[0] == "Cancel" {
         return Ok(());
     }
-    
+
     // Use readline for input with full editing support
     println!("\n--- Add New Task ---");
-    
+
     // Get slug
     print!("Enter task slug: ");
     std::io::Write::flush(&mut std::io::stdout())?;
     let mut slug = String::new();
     std::io::stdin().read_line(&mut slug)?;
     let slug = slug.trim().to_string();
-    
+
     if slug.is_empty() {
         println!("Task creation cancelled");
         std::thread::sleep(std::time::Duration::from_secs(1));
         return Ok(());
     }
-    
+
     // Check if slug already exists
     if storage.events.iter().any(|e| e.slug == slug) {
         println!("Error: Task with slug '{slug}' already exists");
         std::thread::sleep(std::time::Duration::from_secs(2));
         return Ok(());
     }
-    
+
     // Get cron expression
     print!("Enter cron expression (e.g., '0 * * * *'): ");
     std::io::Write::flush(&mut std::io::stdout())?;
     let mut cron = String::new();
     std::io::stdin().read_line(&mut cron)?;
     let cron = cron.trim().to_string();
-    
+
     // Validate cron
     if let Err(e) = cron::Schedule::from_str(&cron) {
         println!("Error: Invalid cron expression: {e}");
         std::thread::sleep(std::time::Duration::from_secs(2));
         return Ok(());
     }
-    
+
     // Get command
     print!("Enter command to execute: ");
     std::io::Write::flush(&mut std::io::stdout())?;
     let mut command = String::new();
     std::io::stdin().read_line(&mut command)?;
     let command = command.trim().to_string();
-    
+
     if command.is_empty() {
         println!("Task creation cancelled");
         std::thread::sleep(std::time::Duration::from_secs(1));
         return Ok(());
     }
-    
+
     // Create and save task
     let event = Event {
         slug: slug.clone(),
@@ -617,19 +630,19 @@ async fn add_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineAsyn
         last_run: None,
         active: true,
     };
-    
+
     storage.events.push(event);
     storage.save().await?;
-    
+
     println!("✅ Task '{slug}' added successfully!");
-    
+
     // Restart daemon
     if let Err(e) = crate::daemon::restart_daemon().await {
         println!("⚠️  Warning: Failed to restart daemon: {e}");
     }
-    
+
     std::thread::sleep(std::time::Duration::from_secs(2));
-    
+
     Ok(())
 }
 
@@ -675,7 +688,7 @@ async fn add_task_interactive(storage: &mut Storage) -> Result<()> {
         )],
         inline_vec![]
     ];
-    
+
     let mut default_io_devices = DefaultIoDevices::default();
     let selected = choose(
         header,
@@ -685,62 +698,64 @@ async fn add_task_interactive(storage: &mut Storage) -> Result<()> {
         HowToChoose::Single,
         StyleSheet::default(),
         default_io_devices.as_mut_tuple(),
-    ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
-    
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+
     if selected.is_empty() || selected[0] == "Cancel" {
         return Ok(());
     }
-    
+
     // Temporarily exit TUI mode for input
     println!("\n--- Add New Task ---");
-    
+
     // Get slug
     print!("Enter task slug: ");
     std::io::Write::flush(&mut std::io::stdout())?;
     let mut slug = String::new();
     std::io::stdin().read_line(&mut slug)?;
     let slug = slug.trim().to_string();
-    
+
     if slug.is_empty() {
         println!("Task creation cancelled");
         std::thread::sleep(std::time::Duration::from_secs(1));
         return Ok(());
     }
-    
+
     // Check if slug already exists
     if storage.events.iter().any(|e| e.slug == slug) {
         println!("Error: Task with slug '{slug}' already exists");
         std::thread::sleep(std::time::Duration::from_secs(2));
         return Ok(());
     }
-    
+
     // Get cron expression
     print!("Enter cron expression (e.g., '0 * * * *'): ");
     std::io::Write::flush(&mut std::io::stdout())?;
     let mut cron = String::new();
     std::io::stdin().read_line(&mut cron)?;
     let cron = cron.trim().to_string();
-    
+
     // Validate cron
     if let Err(e) = cron::Schedule::from_str(&cron) {
         println!("Error: Invalid cron expression: {e}");
         std::thread::sleep(std::time::Duration::from_secs(2));
         return Ok(());
     }
-    
+
     // Get command
     print!("Enter command to execute: ");
     std::io::Write::flush(&mut std::io::stdout())?;
     let mut command = String::new();
     std::io::stdin().read_line(&mut command)?;
     let command = command.trim().to_string();
-    
+
     if command.is_empty() {
         println!("Task creation cancelled");
         std::thread::sleep(std::time::Duration::from_secs(1));
         return Ok(());
     }
-    
+
     // Create and save task
     let event = Event {
         slug: slug.clone(),
@@ -751,38 +766,39 @@ async fn add_task_interactive(storage: &mut Storage) -> Result<()> {
         last_run: None,
         active: true,
     };
-    
+
     storage.events.push(event);
     storage.save().await?;
-    
+
     println!("✅ Task '{slug}' added successfully!");
-    
+
     // Restart daemon
     if let Err(e) = crate::daemon::restart_daemon().await {
         println!("⚠️  Warning: Failed to restart daemon: {e}");
     }
-    
+
     std::thread::sleep(std::time::Duration::from_secs(2));
-    
+
     Ok(())
 }
 
-async fn delete_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineAsyncContext) -> Result<()> {
+async fn delete_task_with_readline(
+    storage: &mut Storage,
+    rl_ctx: &mut ReadlineAsyncContext,
+) -> Result<()> {
     if storage.events.is_empty() {
-        let header = ast_lines![
-            inline_vec![ast(
-                "❌ No tasks to delete",
-                new_style!(
-                    color_fg: {tui_color!(255, 132, 18)}
-                    bold
-                ),
-            )]
-        ];
-        
+        let header = ast_lines![inline_vec![ast(
+            "❌ No tasks to delete",
+            new_style!(
+                color_fg: {tui_color!(255, 132, 18)}
+                bold
+            ),
+        )]];
+
         let sw = rl_ctx.clone_shared_writer();
         let mut output_device = rl_ctx.clone_output_device();
         let input_device = rl_ctx.mut_input_device();
-        
+
         let _ = choose(
             header,
             &["OK"],
@@ -791,15 +807,17 @@ async fn delete_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
             HowToChoose::Single,
             StyleSheet::default(),
             (&mut output_device, input_device, Some(sw.clone())),
-        ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
-        
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
+
         return Ok(());
     }
-    
+
     // Prepare choices for selection
     let mut choices = Vec::new();
     choices.push("❌ Cancel".to_string());
-    
+
     for (i, event) in storage.events.iter().enumerate() {
         choices.push(format!(
             "{:2}. {} - {}",
@@ -808,9 +826,9 @@ async fn delete_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
             truncate(&event.command, 40)
         ));
     }
-    
+
     let choice_refs: Vec<&str> = choices.iter().map(|s| s.as_str()).collect();
-    
+
     let header = ast_lines![
         inline_vec![ast(
             "🗑️  Select task to delete",
@@ -826,11 +844,11 @@ async fn delete_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
             new_style!(color_fg: {tui_color!(94, 103, 111)}),
         )]
     ];
-    
+
     let sw = rl_ctx.clone_shared_writer();
     let mut output_device = rl_ctx.clone_output_device();
     let input_device = rl_ctx.mut_input_device();
-    
+
     let selected = choose(
         header,
         &choice_refs[..],
@@ -839,12 +857,14 @@ async fn delete_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
         HowToChoose::Single,
         StyleSheet::default(),
         (&mut output_device, input_device, Some(sw.clone())),
-    ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
-    
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+
     if selected.is_empty() || selected[0] == "❌ Cancel" {
         return Ok(());
     }
-    
+
     // Parse the selected index
     let selected_str = &selected[0];
     if let Some(dot_pos) = selected_str.find('.') {
@@ -852,18 +872,16 @@ async fn delete_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
             if index > 0 && index <= storage.events.len() {
                 let task = storage.events.remove(index - 1);
                 storage.save().await?;
-                
+
                 // Show success message
-                let success_header = ast_lines![
-                    inline_vec![ast(
-                        format!("✅ Task '{}' deleted successfully!", task.slug),
-                        new_style!(
-                            color_fg: {tui_color!(9, 238, 211)}
-                            bold
-                        ),
-                    )]
-                ];
-                
+                let success_header = ast_lines![inline_vec![ast(
+                    format!("✅ Task '{}' deleted successfully!", task.slug),
+                    new_style!(
+                        color_fg: {tui_color!(9, 238, 211)}
+                        bold
+                    ),
+                )]];
+
                 let _ = choose(
                     success_header,
                     &["OK"],
@@ -872,8 +890,10 @@ async fn delete_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
                     HowToChoose::Single,
                     StyleSheet::default(),
                     (&mut output_device, input_device, Some(sw.clone())),
-                ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
-                
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
+
                 // Restart daemon if needed
                 if storage.events.iter().any(|e| e.active) {
                     if let Err(e) = crate::daemon::restart_daemon().await {
@@ -885,25 +905,23 @@ async fn delete_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
             }
         }
     }
-    
+
     Ok(())
 }
 
 async fn delete_task_interactive_with_choose(storage: &mut Storage) -> Result<()> {
     if storage.events.is_empty() {
-        let header = ast_lines![
-            inline_vec![ast(
-                "❌ No tasks to delete",
-                new_style!(
-                    color_fg: {tui_color!(255, 132, 18)}
-                    bold
-                ),
-            )]
-        ];
-        
+        let header = ast_lines![inline_vec![ast(
+            "❌ No tasks to delete",
+            new_style!(
+                color_fg: {tui_color!(255, 132, 18)}
+                bold
+            ),
+        )]];
+
         let mut output_device = OutputDevice::new_stdout();
         let mut input_device = InputDevice::new_event_stream();
-        
+
         let _ = choose(
             Header::MultiLine(header),
             &["OK"],
@@ -912,15 +930,17 @@ async fn delete_task_interactive_with_choose(storage: &mut Storage) -> Result<()
             HowToChoose::Single,
             StyleSheet::default(),
             (&mut output_device, &mut input_device, None),
-        ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
-        
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
+
         return Ok(());
     }
-    
+
     // Prepare choices for selection
     let mut choices = Vec::new();
     choices.push("❌ Cancel".to_string());
-    
+
     for (i, event) in storage.events.iter().enumerate() {
         choices.push(format!(
             "{:2}. {} - {}",
@@ -929,9 +949,9 @@ async fn delete_task_interactive_with_choose(storage: &mut Storage) -> Result<()
             truncate(&event.command, 40)
         ));
     }
-    
+
     let choice_refs: Vec<&str> = choices.iter().map(|s| s.as_str()).collect();
-    
+
     let header = ast_lines![
         inline_vec![ast(
             "🗑️  Select task to delete",
@@ -947,10 +967,10 @@ async fn delete_task_interactive_with_choose(storage: &mut Storage) -> Result<()
             new_style!(color_fg: {tui_color!(94, 103, 111)}),
         )]
     ];
-    
+
     let mut output_device = OutputDevice::new_stdout();
     let mut input_device = InputDevice::new_event_stream();
-    
+
     let selected = choose(
         Header::MultiLine(header),
         &choice_refs[..],
@@ -959,12 +979,14 @@ async fn delete_task_interactive_with_choose(storage: &mut Storage) -> Result<()
         HowToChoose::Single,
         StyleSheet::default(),
         (&mut output_device, &mut input_device, None),
-    ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
-    
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+
     if selected.is_empty() || selected[0] == "❌ Cancel" {
         return Ok(());
     }
-    
+
     // Parse the selected index
     let selected_str = &selected[0];
     if let Some(dot_pos) = selected_str.find('.') {
@@ -972,21 +994,19 @@ async fn delete_task_interactive_with_choose(storage: &mut Storage) -> Result<()
             if index > 0 && index <= storage.events.len() {
                 let task = storage.events.remove(index - 1);
                 storage.save().await?;
-                
+
                 // Show success message
-                let success_header = ast_lines![
-                    inline_vec![ast(
-                        format!("✅ Task '{}' deleted successfully!", task.slug),
-                        new_style!(
-                            color_fg: {tui_color!(9, 238, 211)}
-                            bold
-                        ),
-                    )]
-                ];
-                
+                let success_header = ast_lines![inline_vec![ast(
+                    format!("✅ Task '{}' deleted successfully!", task.slug),
+                    new_style!(
+                        color_fg: {tui_color!(9, 238, 211)}
+                        bold
+                    ),
+                )]];
+
                 let mut output_device2 = OutputDevice::new_stdout();
                 let mut input_device2 = InputDevice::new_event_stream();
-                
+
                 let _ = choose(
                     Header::MultiLine(success_header),
                     &["OK"],
@@ -995,8 +1015,10 @@ async fn delete_task_interactive_with_choose(storage: &mut Storage) -> Result<()
                     HowToChoose::Single,
                     StyleSheet::default(),
                     (&mut output_device2, &mut input_device2, None),
-                ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
-                
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
+
                 // Restart daemon if needed
                 if storage.events.iter().any(|e| e.active) {
                     if let Err(e) = crate::daemon::restart_daemon().await {
@@ -1008,22 +1030,20 @@ async fn delete_task_interactive_with_choose(storage: &mut Storage) -> Result<()
             }
         }
     }
-    
+
     Ok(())
 }
 
 async fn delete_task_interactive(storage: &mut Storage) -> Result<()> {
     if storage.events.is_empty() {
-        let header = ast_lines![
-            inline_vec![ast(
-                "❌ No tasks to delete",
-                new_style!(
-                    color_fg: {tui_color!(255, 132, 18)}
-                    bold
-                ),
-            )]
-        ];
-        
+        let header = ast_lines![inline_vec![ast(
+            "❌ No tasks to delete",
+            new_style!(
+                color_fg: {tui_color!(255, 132, 18)}
+                bold
+            ),
+        )]];
+
         let mut output_device = OutputDevice::new_stdout();
         let mut input_device = InputDevice::new_event_stream();
         let _ = choose(
@@ -1034,15 +1054,17 @@ async fn delete_task_interactive(storage: &mut Storage) -> Result<()> {
             HowToChoose::Single,
             StyleSheet::default(),
             (&mut output_device, &mut input_device, None),
-        ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
-        
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
+
         return Ok(());
     }
-    
+
     // Prepare choices for selection
     let mut choices = Vec::new();
     choices.push("❌ Cancel".to_string());
-    
+
     for (i, event) in storage.events.iter().enumerate() {
         choices.push(format!(
             "{:2}. {} - {}",
@@ -1051,9 +1073,9 @@ async fn delete_task_interactive(storage: &mut Storage) -> Result<()> {
             truncate(&event.command, 40)
         ));
     }
-    
+
     let choice_refs: Vec<&str> = choices.iter().map(|s| s.as_str()).collect();
-    
+
     let header = ast_lines![
         inline_vec![ast(
             "🗑️  Select task to delete",
@@ -1069,7 +1091,7 @@ async fn delete_task_interactive(storage: &mut Storage) -> Result<()> {
             new_style!(color_fg: {tui_color!(94, 103, 111)}),
         )]
     ];
-    
+
     let mut output_device = OutputDevice::new_stdout();
     let mut input_device = InputDevice::new_event_stream();
     let selected = choose(
@@ -1080,12 +1102,14 @@ async fn delete_task_interactive(storage: &mut Storage) -> Result<()> {
         HowToChoose::Single,
         StyleSheet::default(),
         (&mut output_device, &mut input_device, None),
-    ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
-    
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+
     if selected.is_empty() || selected[0] == "❌ Cancel" {
         return Ok(());
     }
-    
+
     // Parse the selected index
     let selected_str = &selected[0];
     if let Some(dot_pos) = selected_str.find('.') {
@@ -1093,18 +1117,16 @@ async fn delete_task_interactive(storage: &mut Storage) -> Result<()> {
             if index > 0 && index <= storage.events.len() {
                 let task = storage.events.remove(index - 1);
                 storage.save().await?;
-                
+
                 // Show success message
-                let success_header = ast_lines![
-                    inline_vec![ast(
-                        format!("✅ Task '{}' deleted successfully!", task.slug),
-                        new_style!(
-                            color_fg: {tui_color!(9, 238, 211)}
-                            bold
-                        ),
-                    )]
-                ];
-                
+                let success_header = ast_lines![inline_vec![ast(
+                    format!("✅ Task '{}' deleted successfully!", task.slug),
+                    new_style!(
+                        color_fg: {tui_color!(9, 238, 211)}
+                        bold
+                    ),
+                )]];
+
                 let mut output_device2 = OutputDevice::new_stdout();
                 let mut input_device2 = InputDevice::new_event_stream();
                 let _ = choose(
@@ -1115,8 +1137,10 @@ async fn delete_task_interactive(storage: &mut Storage) -> Result<()> {
                     HowToChoose::Single,
                     StyleSheet::default(),
                     (&mut output_device2, &mut input_device2, None),
-                ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
-                
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
+
                 // Restart daemon if needed
                 if storage.events.iter().any(|e| e.active) {
                     if let Err(e) = crate::daemon::restart_daemon().await {
@@ -1128,26 +1152,27 @@ async fn delete_task_interactive(storage: &mut Storage) -> Result<()> {
             }
         }
     }
-    
+
     Ok(())
 }
 
-async fn toggle_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineAsyncContext) -> Result<()> {
+async fn toggle_task_with_readline(
+    storage: &mut Storage,
+    rl_ctx: &mut ReadlineAsyncContext,
+) -> Result<()> {
     if storage.events.is_empty() {
-        let header = ast_lines![
-            inline_vec![ast(
-                "❌ No tasks to toggle",
-                new_style!(
-                    color_fg: {tui_color!(255, 132, 18)}
-                    bold
-                ),
-            )]
-        ];
-        
+        let header = ast_lines![inline_vec![ast(
+            "❌ No tasks to toggle",
+            new_style!(
+                color_fg: {tui_color!(255, 132, 18)}
+                bold
+            ),
+        )]];
+
         let sw = rl_ctx.clone_shared_writer();
         let mut output_device = rl_ctx.clone_output_device();
         let input_device = rl_ctx.mut_input_device();
-        
+
         let _ = choose(
             header,
             &["OK"],
@@ -1156,15 +1181,17 @@ async fn toggle_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
             HowToChoose::Single,
             StyleSheet::default(),
             (&mut output_device, input_device, Some(sw.clone())),
-        ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
-        
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
+
         return Ok(());
     }
-    
+
     // Prepare choices with current status
     let mut choices = Vec::new();
     choices.push("❌ Cancel".to_string());
-    
+
     for (i, event) in storage.events.iter().enumerate() {
         let status = if event.active { "✅" } else { "⏸️" };
         choices.push(format!(
@@ -1175,9 +1202,9 @@ async fn toggle_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
             truncate(&event.command, 35)
         ));
     }
-    
+
     let choice_refs: Vec<&str> = choices.iter().map(|s| s.as_str()).collect();
-    
+
     let header = ast_lines![
         inline_vec![ast(
             "🔄 Select task to toggle active/inactive",
@@ -1193,11 +1220,11 @@ async fn toggle_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
             new_style!(color_fg: {tui_color!(94, 103, 111)}),
         )]
     ];
-    
+
     let sw = rl_ctx.clone_shared_writer();
     let mut output_device = rl_ctx.clone_output_device();
     let input_device = rl_ctx.mut_input_device();
-    
+
     let selected = choose(
         header,
         &choice_refs[..],
@@ -1206,12 +1233,14 @@ async fn toggle_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
         HowToChoose::Single,
         StyleSheet::default(),
         (&mut output_device, input_device, Some(sw.clone())),
-    ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
-    
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+
     if selected.is_empty() || selected[0] == "❌ Cancel" {
         return Ok(());
     }
-    
+
     // Parse the selected index
     let selected_str = &selected[0];
     if let Some(dot_pos) = selected_str.find('.') {
@@ -1219,22 +1248,24 @@ async fn toggle_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
             if index > 0 && index <= storage.events.len() {
                 let task = &mut storage.events[index - 1];
                 task.active = !task.active;
-                let new_status = if task.active { "activated" } else { "deactivated" };
+                let new_status = if task.active {
+                    "activated"
+                } else {
+                    "deactivated"
+                };
                 let slug = task.slug.clone();
-                
+
                 storage.save().await?;
-                
+
                 // Show success message
-                let success_header = ast_lines![
-                    inline_vec![ast(
-                        format!("✅ Task '{slug}' {new_status}!"),
-                        new_style!(
-                            color_fg: {tui_color!(9, 238, 211)}
-                            bold
-                        ),
-                    )]
-                ];
-                
+                let success_header = ast_lines![inline_vec![ast(
+                    format!("✅ Task '{slug}' {new_status}!"),
+                    new_style!(
+                        color_fg: {tui_color!(9, 238, 211)}
+                        bold
+                    ),
+                )]];
+
                 let _ = choose(
                     success_header,
                     &["OK"],
@@ -1243,8 +1274,10 @@ async fn toggle_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
                     HowToChoose::Single,
                     StyleSheet::default(),
                     (&mut output_device, input_device, Some(sw.clone())),
-                ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
-                
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
+
                 // Restart daemon
                 if let Err(e) = crate::daemon::restart_daemon().await {
                     eprintln!("Warning: Failed to restart daemon: {e}");
@@ -1252,25 +1285,23 @@ async fn toggle_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
             }
         }
     }
-    
+
     Ok(())
 }
 
 async fn toggle_task_interactive_with_choose(storage: &mut Storage) -> Result<()> {
     if storage.events.is_empty() {
-        let header = ast_lines![
-            inline_vec![ast(
-                "❌ No tasks to toggle",
-                new_style!(
-                    color_fg: {tui_color!(255, 132, 18)}
-                    bold
-                ),
-            )]
-        ];
-        
+        let header = ast_lines![inline_vec![ast(
+            "❌ No tasks to toggle",
+            new_style!(
+                color_fg: {tui_color!(255, 132, 18)}
+                bold
+            ),
+        )]];
+
         let mut output_device = OutputDevice::new_stdout();
         let mut input_device = InputDevice::new_event_stream();
-        
+
         let _ = choose(
             Header::MultiLine(header),
             &["OK"],
@@ -1279,15 +1310,17 @@ async fn toggle_task_interactive_with_choose(storage: &mut Storage) -> Result<()
             HowToChoose::Single,
             StyleSheet::default(),
             (&mut output_device, &mut input_device, None),
-        ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
-        
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
+
         return Ok(());
     }
-    
+
     // Prepare choices with current status
     let mut choices = Vec::new();
     choices.push("❌ Cancel".to_string());
-    
+
     for (i, event) in storage.events.iter().enumerate() {
         let status = if event.active { "✅" } else { "⏸️" };
         choices.push(format!(
@@ -1298,9 +1331,9 @@ async fn toggle_task_interactive_with_choose(storage: &mut Storage) -> Result<()
             truncate(&event.command, 35)
         ));
     }
-    
+
     let choice_refs: Vec<&str> = choices.iter().map(|s| s.as_str()).collect();
-    
+
     let header = ast_lines![
         inline_vec![ast(
             "🔄 Select task to toggle active/inactive",
@@ -1316,10 +1349,10 @@ async fn toggle_task_interactive_with_choose(storage: &mut Storage) -> Result<()
             new_style!(color_fg: {tui_color!(94, 103, 111)}),
         )]
     ];
-    
+
     let mut output_device = OutputDevice::new_stdout();
     let mut input_device = InputDevice::new_event_stream();
-    
+
     let selected = choose(
         Header::MultiLine(header),
         &choice_refs[..],
@@ -1328,12 +1361,14 @@ async fn toggle_task_interactive_with_choose(storage: &mut Storage) -> Result<()
         HowToChoose::Single,
         StyleSheet::default(),
         (&mut output_device, &mut input_device, None),
-    ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
-    
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+
     if selected.is_empty() || selected[0] == "❌ Cancel" {
         return Ok(());
     }
-    
+
     // Parse the selected index
     let selected_str = &selected[0];
     if let Some(dot_pos) = selected_str.find('.') {
@@ -1341,25 +1376,27 @@ async fn toggle_task_interactive_with_choose(storage: &mut Storage) -> Result<()
             if index > 0 && index <= storage.events.len() {
                 let task = &mut storage.events[index - 1];
                 task.active = !task.active;
-                let new_status = if task.active { "activated" } else { "deactivated" };
+                let new_status = if task.active {
+                    "activated"
+                } else {
+                    "deactivated"
+                };
                 let slug = task.slug.clone();
-                
+
                 storage.save().await?;
-                
+
                 // Show success message
-                let success_header = ast_lines![
-                    inline_vec![ast(
-                        format!("✅ Task '{slug}' {new_status}!"),
-                        new_style!(
-                            color_fg: {tui_color!(9, 238, 211)}
-                            bold
-                        ),
-                    )]
-                ];
-                
+                let success_header = ast_lines![inline_vec![ast(
+                    format!("✅ Task '{slug}' {new_status}!"),
+                    new_style!(
+                        color_fg: {tui_color!(9, 238, 211)}
+                        bold
+                    ),
+                )]];
+
                 let mut output_device2 = OutputDevice::new_stdout();
                 let mut input_device2 = InputDevice::new_event_stream();
-                
+
                 let _ = choose(
                     Header::MultiLine(success_header),
                     &["OK"],
@@ -1368,8 +1405,10 @@ async fn toggle_task_interactive_with_choose(storage: &mut Storage) -> Result<()
                     HowToChoose::Single,
                     StyleSheet::default(),
                     (&mut output_device2, &mut input_device2, None),
-                ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
-                
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
+
                 // Restart daemon
                 if let Err(e) = crate::daemon::restart_daemon().await {
                     eprintln!("Warning: Failed to restart daemon: {e}");
@@ -1377,22 +1416,20 @@ async fn toggle_task_interactive_with_choose(storage: &mut Storage) -> Result<()
             }
         }
     }
-    
+
     Ok(())
 }
 
 async fn toggle_task_interactive(storage: &mut Storage) -> Result<()> {
     if storage.events.is_empty() {
-        let header = ast_lines![
-            inline_vec![ast(
-                "❌ No tasks to toggle",
-                new_style!(
-                    color_fg: {tui_color!(255, 132, 18)}
-                    bold
-                ),
-            )]
-        ];
-        
+        let header = ast_lines![inline_vec![ast(
+            "❌ No tasks to toggle",
+            new_style!(
+                color_fg: {tui_color!(255, 132, 18)}
+                bold
+            ),
+        )]];
+
         let mut output_device = OutputDevice::new_stdout();
         let mut input_device = InputDevice::new_event_stream();
         let _ = choose(
@@ -1403,15 +1440,17 @@ async fn toggle_task_interactive(storage: &mut Storage) -> Result<()> {
             HowToChoose::Single,
             StyleSheet::default(),
             (&mut output_device, &mut input_device, None),
-        ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
-        
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
+
         return Ok(());
     }
-    
+
     // Prepare choices with current status
     let mut choices = Vec::new();
     choices.push("❌ Cancel".to_string());
-    
+
     for (i, event) in storage.events.iter().enumerate() {
         let status = if event.active { "✅" } else { "⏸️" };
         choices.push(format!(
@@ -1422,9 +1461,9 @@ async fn toggle_task_interactive(storage: &mut Storage) -> Result<()> {
             truncate(&event.command, 35)
         ));
     }
-    
+
     let choice_refs: Vec<&str> = choices.iter().map(|s| s.as_str()).collect();
-    
+
     let header = ast_lines![
         inline_vec![ast(
             "🔄 Select task to toggle active/inactive",
@@ -1440,7 +1479,7 @@ async fn toggle_task_interactive(storage: &mut Storage) -> Result<()> {
             new_style!(color_fg: {tui_color!(94, 103, 111)}),
         )]
     ];
-    
+
     let mut output_device = OutputDevice::new_stdout();
     let mut input_device = InputDevice::new_event_stream();
     let selected = choose(
@@ -1451,12 +1490,14 @@ async fn toggle_task_interactive(storage: &mut Storage) -> Result<()> {
         HowToChoose::Single,
         StyleSheet::default(),
         (&mut output_device, &mut input_device, None),
-    ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
-    
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+
     if selected.is_empty() || selected[0] == "❌ Cancel" {
         return Ok(());
     }
-    
+
     // Parse the selected index
     let selected_str = &selected[0];
     if let Some(dot_pos) = selected_str.find('.') {
@@ -1464,22 +1505,24 @@ async fn toggle_task_interactive(storage: &mut Storage) -> Result<()> {
             if index > 0 && index <= storage.events.len() {
                 let task = &mut storage.events[index - 1];
                 task.active = !task.active;
-                let new_status = if task.active { "activated" } else { "deactivated" };
+                let new_status = if task.active {
+                    "activated"
+                } else {
+                    "deactivated"
+                };
                 let slug = task.slug.clone();
-                
+
                 storage.save().await?;
-                
+
                 // Show success message
-                let success_header = ast_lines![
-                    inline_vec![ast(
-                        format!("✅ Task '{slug}' {new_status}!"),
-                        new_style!(
-                            color_fg: {tui_color!(9, 238, 211)}
-                            bold
-                        ),
-                    )]
-                ];
-                
+                let success_header = ast_lines![inline_vec![ast(
+                    format!("✅ Task '{slug}' {new_status}!"),
+                    new_style!(
+                        color_fg: {tui_color!(9, 238, 211)}
+                        bold
+                    ),
+                )]];
+
                 let mut output_device2 = OutputDevice::new_stdout();
                 let mut input_device2 = InputDevice::new_event_stream();
                 let _ = choose(
@@ -1490,8 +1533,10 @@ async fn toggle_task_interactive(storage: &mut Storage) -> Result<()> {
                     HowToChoose::Single,
                     StyleSheet::default(),
                     (&mut output_device2, &mut input_device2, None),
-                ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
-                
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
+
                 // Restart daemon
                 if let Err(e) = crate::daemon::restart_daemon().await {
                     eprintln!("Warning: Failed to restart daemon: {e}");
@@ -1499,7 +1544,7 @@ async fn toggle_task_interactive(storage: &mut Storage) -> Result<()> {
             }
         }
     }
-    
+
     Ok(())
 }
 
