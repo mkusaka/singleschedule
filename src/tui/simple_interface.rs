@@ -15,7 +15,7 @@ pub async fn run_simple_tui() -> Result<()> {
     
     // Try to create readline context for better copy/paste support
     let readline_context = ReadlineAsyncContext::try_new(None::<String>).await
-        .map_err(|e| anyhow::anyhow!("Failed to create readline context: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to create readline context: {e}"))?;
     
     match readline_context {
         Some(rl_ctx) => {
@@ -35,7 +35,7 @@ async fn run_with_readline(storage: &mut Storage, mut rl_ctx: ReadlineAsyncConte
         let header = create_main_menu_header();
         
         // Show task list as part of the header
-        let task_list = create_task_list_display(&storage);
+        let task_list = create_task_list_display(storage);
         let mut full_header = header;
         full_header.extend(task_list);
         
@@ -63,7 +63,7 @@ async fn run_with_readline(storage: &mut Storage, mut rl_ctx: ReadlineAsyncConte
             HowToChoose::Single,
             StyleSheet::default(),
             (&mut output_device, input_device, Some(sw.clone())),
-        ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+        ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
         
         if selected.is_empty() {
             // User pressed ESC or Ctrl+C
@@ -101,13 +101,13 @@ async fn run_with_readline(storage: &mut Storage, mut rl_ctx: ReadlineAsyncConte
     
     // Shutdown readline context properly
     rl_ctx.request_shutdown(Some("Goodbye! 👋")).await
-        .map_err(|e| anyhow::anyhow!("Failed to shutdown readline: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to shutdown readline: {e}"))?;
     rl_ctx.await_shutdown().await;
     
     Ok(())
 }
 
-async fn run_without_readline(mut storage: &mut Storage) -> Result<()> {
+async fn run_without_readline(storage: &mut Storage) -> Result<()> {
     // Note: Without readline context, we have limited terminal control
     // But we can still use choose() with proper setup
     
@@ -115,11 +115,11 @@ async fn run_without_readline(mut storage: &mut Storage) -> Result<()> {
     // If this fails, it's likely because we're not in a proper terminal
     if let Err(e) = enable_raw_mode() {
         // Fallback to simpler interface without raw mode
-        eprintln!("Warning: Could not enable raw mode: {}. Using simplified interface.", e);
+        eprintln!("Warning: Could not enable raw mode: {e}. Using simplified interface.");
         return run_simple_interface(storage).await;
     }
     
-    let result = run_tui_loop(&mut storage).await;
+    let result = run_tui_loop(storage).await;
     
     // Always disable raw mode before returning
     let _ = disable_raw_mode(); // Ignore errors on cleanup
@@ -228,7 +228,7 @@ async fn run_tui_loop(storage: &mut Storage) -> Result<()> {
         let header = create_main_menu_header();
         
         // Show task list as part of the header
-        let task_list = create_task_list_display(&storage);
+        let task_list = create_task_list_display(storage);
         let mut full_header = header;
         full_header.extend(task_list);
         
@@ -255,7 +255,7 @@ async fn run_tui_loop(storage: &mut Storage) -> Result<()> {
             HowToChoose::Single,
             StyleSheet::default(),
             (&mut output_device, &mut input_device, None),
-        ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+        ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
         
         if selected.is_empty() {
             // User pressed ESC or Ctrl+C
@@ -499,62 +499,6 @@ async fn show_help_with_choose() -> Result<()> {
     Ok(())
 }
 
-async fn show_help() -> Result<()> {
-    let help_header = ast_lines![
-        inline_vec![ast(
-            "📚 SingleSchedule Help",
-            new_style!(
-                color_fg: {tui_color!(171, 204, 242)}
-                color_bg: {tui_color!(31, 36, 46)}
-                bold
-            ),
-        )],
-        inline_vec![],
-        inline_vec![ast(
-            "💡 Tips:",
-            new_style!(
-                color_fg: {tui_color!(9, 238, 211)}
-                bold
-            ),
-        )],
-        inline_vec![ast(
-            "• Use arrow keys (↑/↓) to navigate menus",
-            new_style!(color_fg: {tui_color!(200, 200, 200)}),
-        )],
-        inline_vec![ast(
-            "• Press Enter to confirm selection",
-            new_style!(color_fg: {tui_color!(200, 200, 200)}),
-        )],
-        inline_vec![ast(
-            "• Press ESC to cancel or go back",
-            new_style!(color_fg: {tui_color!(200, 200, 200)}),
-        )],
-        inline_vec![ast(
-            "• Copy/paste works as expected in your terminal!",
-            new_style!(color_fg: {tui_color!(200, 200, 200)}),
-        )],
-        inline_vec![],
-        inline_vec![ast(
-            "Press Enter to continue...",
-            new_style!(
-                color_fg: {tui_color!(255, 216, 9)}
-            ),
-        )]
-    ];
-    
-    let mut default_io_devices = DefaultIoDevices::default();
-    let _ = choose(
-        help_header,
-        &["Continue"],
-        Some(height(1)),
-        None,
-        HowToChoose::Single,
-        StyleSheet::default(),
-        default_io_devices.as_mut_tuple(),
-    ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
-    
-    Ok(())
-}
 
 async fn add_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineAsyncContext) -> Result<()> {
     // Show add task instructions
@@ -631,7 +575,7 @@ async fn add_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineAsyn
     
     // Check if slug already exists
     if storage.events.iter().any(|e| e.slug == slug) {
-        println!("Error: Task with slug '{}' already exists", slug);
+        println!("Error: Task with slug '{slug}' already exists");
         std::thread::sleep(std::time::Duration::from_secs(2));
         return Ok(());
     }
@@ -645,7 +589,7 @@ async fn add_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineAsyn
     
     // Validate cron
     if let Err(e) = cron::Schedule::from_str(&cron) {
-        println!("Error: Invalid cron expression: {}", e);
+        println!("Error: Invalid cron expression: {e}");
         std::thread::sleep(std::time::Duration::from_secs(2));
         return Ok(());
     }
@@ -677,11 +621,11 @@ async fn add_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineAsyn
     storage.events.push(event);
     storage.save().await?;
     
-    println!("✅ Task '{}' added successfully!", slug);
+    println!("✅ Task '{slug}' added successfully!");
     
     // Restart daemon
     if let Err(e) = crate::daemon::restart_daemon().await {
-        println!("⚠️  Warning: Failed to restart daemon: {}", e);
+        println!("⚠️  Warning: Failed to restart daemon: {e}");
     }
     
     std::thread::sleep(std::time::Duration::from_secs(2));
@@ -765,7 +709,7 @@ async fn add_task_interactive(storage: &mut Storage) -> Result<()> {
     
     // Check if slug already exists
     if storage.events.iter().any(|e| e.slug == slug) {
-        println!("Error: Task with slug '{}' already exists", slug);
+        println!("Error: Task with slug '{slug}' already exists");
         std::thread::sleep(std::time::Duration::from_secs(2));
         return Ok(());
     }
@@ -779,7 +723,7 @@ async fn add_task_interactive(storage: &mut Storage) -> Result<()> {
     
     // Validate cron
     if let Err(e) = cron::Schedule::from_str(&cron) {
-        println!("Error: Invalid cron expression: {}", e);
+        println!("Error: Invalid cron expression: {e}");
         std::thread::sleep(std::time::Duration::from_secs(2));
         return Ok(());
     }
@@ -811,11 +755,11 @@ async fn add_task_interactive(storage: &mut Storage) -> Result<()> {
     storage.events.push(event);
     storage.save().await?;
     
-    println!("✅ Task '{}' added successfully!", slug);
+    println!("✅ Task '{slug}' added successfully!");
     
     // Restart daemon
     if let Err(e) = crate::daemon::restart_daemon().await {
-        println!("⚠️  Warning: Failed to restart daemon: {}", e);
+        println!("⚠️  Warning: Failed to restart daemon: {e}");
     }
     
     std::thread::sleep(std::time::Duration::from_secs(2));
@@ -847,7 +791,7 @@ async fn delete_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
             HowToChoose::Single,
             StyleSheet::default(),
             (&mut output_device, input_device, Some(sw.clone())),
-        ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+        ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
         
         return Ok(());
     }
@@ -912,7 +856,7 @@ async fn delete_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
                 // Show success message
                 let success_header = ast_lines![
                     inline_vec![ast(
-                        &format!("✅ Task '{}' deleted successfully!", task.slug),
+                        format!("✅ Task '{}' deleted successfully!", task.slug),
                         new_style!(
                             color_fg: {tui_color!(9, 238, 211)}
                             bold
@@ -928,15 +872,15 @@ async fn delete_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
                     HowToChoose::Single,
                     StyleSheet::default(),
                     (&mut output_device, input_device, Some(sw.clone())),
-                ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+                ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
                 
                 // Restart daemon if needed
                 if storage.events.iter().any(|e| e.active) {
                     if let Err(e) = crate::daemon::restart_daemon().await {
-                        eprintln!("Warning: Failed to restart daemon: {}", e);
+                        eprintln!("Warning: Failed to restart daemon: {e}");
                     }
                 } else if let Err(e) = crate::daemon::stop_daemon().await {
-                    eprintln!("Warning: Failed to stop daemon: {}", e);
+                    eprintln!("Warning: Failed to stop daemon: {e}");
                 }
             }
         }
@@ -968,7 +912,7 @@ async fn delete_task_interactive_with_choose(storage: &mut Storage) -> Result<()
             HowToChoose::Single,
             StyleSheet::default(),
             (&mut output_device, &mut input_device, None),
-        ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+        ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
         
         return Ok(());
     }
@@ -1032,7 +976,7 @@ async fn delete_task_interactive_with_choose(storage: &mut Storage) -> Result<()
                 // Show success message
                 let success_header = ast_lines![
                     inline_vec![ast(
-                        &format!("✅ Task '{}' deleted successfully!", task.slug),
+                        format!("✅ Task '{}' deleted successfully!", task.slug),
                         new_style!(
                             color_fg: {tui_color!(9, 238, 211)}
                             bold
@@ -1051,15 +995,15 @@ async fn delete_task_interactive_with_choose(storage: &mut Storage) -> Result<()
                     HowToChoose::Single,
                     StyleSheet::default(),
                     (&mut output_device2, &mut input_device2, None),
-                ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+                ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
                 
                 // Restart daemon if needed
                 if storage.events.iter().any(|e| e.active) {
                     if let Err(e) = crate::daemon::restart_daemon().await {
-                        eprintln!("Warning: Failed to restart daemon: {}", e);
+                        eprintln!("Warning: Failed to restart daemon: {e}");
                     }
                 } else if let Err(e) = crate::daemon::stop_daemon().await {
-                    eprintln!("Warning: Failed to stop daemon: {}", e);
+                    eprintln!("Warning: Failed to stop daemon: {e}");
                 }
             }
         }
@@ -1090,7 +1034,7 @@ async fn delete_task_interactive(storage: &mut Storage) -> Result<()> {
             HowToChoose::Single,
             StyleSheet::default(),
             (&mut output_device, &mut input_device, None),
-        ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+        ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
         
         return Ok(());
     }
@@ -1153,7 +1097,7 @@ async fn delete_task_interactive(storage: &mut Storage) -> Result<()> {
                 // Show success message
                 let success_header = ast_lines![
                     inline_vec![ast(
-                        &format!("✅ Task '{}' deleted successfully!", task.slug),
+                        format!("✅ Task '{}' deleted successfully!", task.slug),
                         new_style!(
                             color_fg: {tui_color!(9, 238, 211)}
                             bold
@@ -1171,15 +1115,15 @@ async fn delete_task_interactive(storage: &mut Storage) -> Result<()> {
                     HowToChoose::Single,
                     StyleSheet::default(),
                     (&mut output_device2, &mut input_device2, None),
-                ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+                ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
                 
                 // Restart daemon if needed
                 if storage.events.iter().any(|e| e.active) {
                     if let Err(e) = crate::daemon::restart_daemon().await {
-                        eprintln!("Warning: Failed to restart daemon: {}", e);
+                        eprintln!("Warning: Failed to restart daemon: {e}");
                     }
                 } else if let Err(e) = crate::daemon::stop_daemon().await {
-                    eprintln!("Warning: Failed to stop daemon: {}", e);
+                    eprintln!("Warning: Failed to stop daemon: {e}");
                 }
             }
         }
@@ -1212,7 +1156,7 @@ async fn toggle_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
             HowToChoose::Single,
             StyleSheet::default(),
             (&mut output_device, input_device, Some(sw.clone())),
-        ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+        ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
         
         return Ok(());
     }
@@ -1283,7 +1227,7 @@ async fn toggle_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
                 // Show success message
                 let success_header = ast_lines![
                     inline_vec![ast(
-                        &format!("✅ Task '{}' {}!", slug, new_status),
+                        format!("✅ Task '{slug}' {new_status}!"),
                         new_style!(
                             color_fg: {tui_color!(9, 238, 211)}
                             bold
@@ -1299,11 +1243,11 @@ async fn toggle_task_with_readline(storage: &mut Storage, rl_ctx: &mut ReadlineA
                     HowToChoose::Single,
                     StyleSheet::default(),
                     (&mut output_device, input_device, Some(sw.clone())),
-                ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+                ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
                 
                 // Restart daemon
                 if let Err(e) = crate::daemon::restart_daemon().await {
-                    eprintln!("Warning: Failed to restart daemon: {}", e);
+                    eprintln!("Warning: Failed to restart daemon: {e}");
                 }
             }
         }
@@ -1335,7 +1279,7 @@ async fn toggle_task_interactive_with_choose(storage: &mut Storage) -> Result<()
             HowToChoose::Single,
             StyleSheet::default(),
             (&mut output_device, &mut input_device, None),
-        ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+        ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
         
         return Ok(());
     }
@@ -1405,7 +1349,7 @@ async fn toggle_task_interactive_with_choose(storage: &mut Storage) -> Result<()
                 // Show success message
                 let success_header = ast_lines![
                     inline_vec![ast(
-                        &format!("✅ Task '{}' {}!", slug, new_status),
+                        format!("✅ Task '{slug}' {new_status}!"),
                         new_style!(
                             color_fg: {tui_color!(9, 238, 211)}
                             bold
@@ -1424,11 +1368,11 @@ async fn toggle_task_interactive_with_choose(storage: &mut Storage) -> Result<()
                     HowToChoose::Single,
                     StyleSheet::default(),
                     (&mut output_device2, &mut input_device2, None),
-                ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+                ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
                 
                 // Restart daemon
                 if let Err(e) = crate::daemon::restart_daemon().await {
-                    eprintln!("Warning: Failed to restart daemon: {}", e);
+                    eprintln!("Warning: Failed to restart daemon: {e}");
                 }
             }
         }
@@ -1459,7 +1403,7 @@ async fn toggle_task_interactive(storage: &mut Storage) -> Result<()> {
             HowToChoose::Single,
             StyleSheet::default(),
             (&mut output_device, &mut input_device, None),
-        ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+        ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
         
         return Ok(());
     }
@@ -1528,7 +1472,7 @@ async fn toggle_task_interactive(storage: &mut Storage) -> Result<()> {
                 // Show success message
                 let success_header = ast_lines![
                     inline_vec![ast(
-                        &format!("✅ Task '{}' {}!", slug, new_status),
+                        format!("✅ Task '{slug}' {new_status}!"),
                         new_style!(
                             color_fg: {tui_color!(9, 238, 211)}
                             bold
@@ -1546,11 +1490,11 @@ async fn toggle_task_interactive(storage: &mut Storage) -> Result<()> {
                     HowToChoose::Single,
                     StyleSheet::default(),
                     (&mut output_device2, &mut input_device2, None),
-                ).await.map_err(|e| anyhow::anyhow!("Choose error: {}", e))?;
+                ).await.map_err(|e| anyhow::anyhow!("Choose error: {e}"))?;
                 
                 // Restart daemon
                 if let Err(e) = crate::daemon::restart_daemon().await {
-                    eprintln!("Warning: Failed to restart daemon: {}", e);
+                    eprintln!("Warning: Failed to restart daemon: {e}");
                 }
             }
         }
