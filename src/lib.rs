@@ -2,6 +2,7 @@ pub mod cli;
 pub mod daemon;
 pub mod scheduler;
 pub mod storage;
+pub mod tui;
 
 pub use scheduler::Scheduler;
 

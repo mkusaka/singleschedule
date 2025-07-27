@@ -11,6 +11,7 @@ A simple cron-based task scheduler daemon for running commands at specified inte
 - Each task has a unique slug identifier
 - Selective task control - start/stop individual tasks without affecting others
 - Task status tracking (active/inactive)
+- **Interactive TUI (Terminal User Interface) for easy task management**
 
 ## Installation
 
@@ -78,6 +79,60 @@ singleschedule stop task1 task2
 # Explicitly stop all tasks and daemon
 singleschedule stop --all
 ```
+
+### Interactive TUI Mode
+
+Launch the interactive Terminal User Interface for easy task management:
+
+```bash
+singleschedule tui
+```
+
+#### TUI Features
+
+- **Simple command-based interface**: Preserves terminal features like text selection and copy/paste
+- **Visual task list**: See all tasks with their status, cron expression, and command
+- **Interactive task selection**: Uses arrow keys for selecting tasks in delete/toggle operations
+- **Real-time status updates**: Changes are immediately saved and reflected
+- **Non-intrusive**: Runs in normal terminal mode, allowing Ctrl+C to exit at any time
+
+#### TUI Commands
+
+- **list** (l) - List all tasks
+- **add** (a) - Add a new task
+- **delete** (d) - Delete a task (with arrow key selection)
+- **toggle** (t) - Toggle task active/inactive (with arrow key selection)
+- **refresh** (r) - Refresh task list
+- **help** (h) - Show available commands
+- **exit** (q) - Exit TUI
+
+#### TUI Example
+
+```
+🗓️  SingleSchedule - Task Management
+
+📋 Available Commands:
+  help    (h)  - Show this help
+  list    (l)  - List all tasks
+  add     (a)  - Add a new task
+  delete  (d)  - Delete a task
+  toggle  (t)  - Toggle task active/inactive
+  refresh (r)  - Refresh task list
+  exit    (q)  - Exit (or use Ctrl+C)
+
+📋 Task List:
+--------------------------------------------------------------------------------
+No.      Slug                 Cron                 Command                       
+--------------------------------------------------------------------------------
+1    ✅   hourly-task          0 * * * * *          echo hourly                   
+2    ✅   daily-task           0 0 * * * *          echo daily                    
+3    ⏸️   cleanup              0 0 0 * * *          cleanup.sh                    
+--------------------------------------------------------------------------------
+
+> 
+```
+
+When using delete or toggle commands, you'll see an interactive selection menu with arrow key navigation.
 
 ## Selective Task Control
 
