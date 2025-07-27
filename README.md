@@ -90,32 +90,49 @@ singleschedule tui
 
 #### TUI Features
 
-- **Visual task list**: See all tasks with their status, cron expression, and last run time
-- **Keyboard navigation**: Use arrow keys to navigate through tasks
+- **Simple command-based interface**: Preserves terminal features like text selection and copy/paste
+- **Visual task list**: See all tasks with their status, cron expression, and command
+- **Interactive task selection**: Uses arrow keys for selecting tasks in delete/toggle operations
 - **Real-time status updates**: Changes are immediately saved and reflected
+- **Non-intrusive**: Runs in normal terminal mode, allowing Ctrl+C to exit at any time
 
-#### TUI Keyboard Shortcuts
+#### TUI Commands
 
-- **↑/↓**: Navigate through tasks
-- **Space**: Toggle task active/inactive status
-- **a**: Add a new task (opens a modal dialog)
-- **d**: Delete selected task (with confirmation dialog)
-- **r**: Refresh task list from storage
-- **Enter**: Toggle daemon for selected task
-- **ESC**: Exit TUI
-- **Ctrl+Q**: Exit TUI (alternative)
+- **list** (l) - List all tasks
+- **add** (a) - Add a new task
+- **delete** (d) - Delete a task (with arrow key selection)
+- **toggle** (t) - Toggle task active/inactive (with arrow key selection)
+- **refresh** (r) - Refresh task list
+- **help** (h) - Show available commands
+- **exit** (q) - Exit TUI
 
-#### TUI Screenshots
+#### TUI Example
 
 ```
-SingleSchedule TUI | Press ESC to quit | a to add | d to delete | Space to toggle
+🗓️  SingleSchedule - Task Management
 
-Status   Slug                 Cron                 Command                        Last Run       
--------------------------------------------------------------------------------------------------
-●        backup               0 0 * * * *          backup.sh                      2025-07-26 12:00
-○        cleanup              0 0 0 * * *          cleanup.sh                     Never
-●        webhook              0 */30 * * * *       curl -X POST https://...       2025-07-26 11:30
+📋 Available Commands:
+  help    (h)  - Show this help
+  list    (l)  - List all tasks
+  add     (a)  - Add a new task
+  delete  (d)  - Delete a task
+  toggle  (t)  - Toggle task active/inactive
+  refresh (r)  - Refresh task list
+  exit    (q)  - Exit (or use Ctrl+C)
+
+📋 Task List:
+--------------------------------------------------------------------------------
+No.      Slug                 Cron                 Command                       
+--------------------------------------------------------------------------------
+1    ✅   hourly-task          0 * * * * *          echo hourly                   
+2    ✅   daily-task           0 0 * * * *          echo daily                    
+3    ⏸️   cleanup              0 0 0 * * *          cleanup.sh                    
+--------------------------------------------------------------------------------
+
+> 
 ```
+
+When using delete or toggle commands, you'll see an interactive selection menu with arrow key navigation.
 
 ## Selective Task Control
 

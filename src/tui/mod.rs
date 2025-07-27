@@ -1,29 +1,21 @@
-pub mod app;
-pub mod state;
+// Full-screen TUI modules (commented out - not used)
+// pub mod add_task_dialog;
+// pub mod app_r3bl;
+// pub mod delete_confirm_dialog;
+// pub mod state;
+// pub mod task_list_component;
+
+// Interface modules
+pub mod simple_interface;
+// pub mod interactive_interface; // Unused - requires raw mode
+// pub mod hybrid_interface; // Removed - requires crossterm
 
 #[cfg(test)]
 mod tests;
 
-use anyhow::Result;
-use crossterm::{
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-};
-use std::io::{self, Write};
-
-pub async fn run_tui() -> Result<()> {
-    // Setup terminal
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
-
-    // Run the app
-    let result = app::run_app(&mut stdout).await;
-
-    // Restore terminal
-    disable_raw_mode()?;
-    execute!(stdout, LeaveAlternateScreen)?;
-    stdout.flush()?;
-
-    result
+// Use the simple interface that already has arrow key selection for delete/toggle
+// while preserving copy/paste functionality
+pub async fn run_tui() -> anyhow::Result<()> {
+    simple_interface::run_simple_tui().await
 }
+

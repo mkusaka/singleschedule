@@ -243,4 +243,5 @@ pub async fn handle_stop(slugs: Vec<String>, all: bool) -> Result<()> {
 
 pub async fn handle_tui() -> Result<()> {
     crate::tui::run_tui().await
+        .map_err(|e| anyhow::anyhow!("TUI error: {}", e))
 }

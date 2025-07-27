@@ -1,4 +1,5 @@
 use crate::storage::{Event, Storage};
+use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -8,12 +9,33 @@ pub struct AppState {
     pub mode: AppMode,
     pub message: Option<String>,
     pub new_task: NewTaskInput,
+    pub show_add_dialog: bool,
+    pub show_delete_dialog: bool,
+}
+
+// Alias for R3BL TUI compatibility
+pub type State = AppState;
+
+// App signals for R3BL TUI event handling
+#[derive(Debug, Clone, Default)]
+#[allow(dead_code)]
+pub enum AppSignal {
+    #[default]
+    RefreshTasks,
+    SaveState,
+    ToggleTask(usize),
+    DeleteTask(usize),
+    AddTask(Event),
+    CloseDialog,
+    ShowMessage(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AppMode {
     Normal,
+    #[cfg(test)]
     AddingTask,
+    #[cfg(test)]
     ConfirmDelete(usize),
 }
 
@@ -37,9 +59,15 @@ impl NewTaskInput {
 
     pub fn handle_backspace(&mut self) {
         match self.current_field {
-            0 => { self.slug.pop(); },
-            1 => { self.cron.pop(); },
-            2 => { self.command.pop(); },
+            0 => {
+                self.slug.pop();
+            }
+            1 => {
+                self.cron.pop();
+            }
+            2 => {
+                self.command.pop();
+            }
             _ => {}
         }
     }
@@ -74,7 +102,21 @@ impl Default for AppState {
             mode: AppMode::Normal,
             message: None,
             new_task: NewTaskInput::default(),
+            show_add_dialog: false,
+            show_delete_dialog: false,
         }
+    }
+}
+
+impl Display for AppState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "AppState {{ tasks: {} tasks, selected: {}, mode: {:?} }}",
+            self.tasks.len(),
+            self.selected_index,
+            self.mode
+        )
     }
 }
 
@@ -94,26 +136,31 @@ impl AppState {
         storage.save().await
     }
 
+    #[cfg(test)]
     pub fn get_selected_task(&self) -> Option<&Event> {
         self.tasks.get(self.selected_index)
     }
 
+    #[cfg(test)]
     pub fn get_selected_task_mut(&mut self) -> Option<&mut Event> {
         self.tasks.get_mut(self.selected_index)
     }
 
+    #[cfg(test)]
     pub fn move_selection_up(&mut self) {
         if self.selected_index > 0 {
             self.selected_index -= 1;
         }
     }
 
+    #[cfg(test)]
     pub fn move_selection_down(&mut self) {
         if self.selected_index < self.tasks.len().saturating_sub(1) {
             self.selected_index += 1;
         }
     }
 
+    #[cfg(test)]
     pub fn toggle_selected_task_active(&mut self) {
         if let Some(task) = self.get_selected_task_mut() {
             task.active = !task.active;
